@@ -14,8 +14,8 @@ umm.. Not many right now. but we are getting there ;-)
 
 ### Autodetect file type and provide auto completion
 
-![Autocompletion](docs/images/autocompletion-toplevel.png)
+![Autocompletion](./docs/images/autocompletion-toplevel.png)
 
 And this even works for nested types :-)
 
-![Nested Autocompletion](docs/images/autocompletion-nested.png)
+![Nested Autocompletion](./docs/images/autocompletion-nested.png)
