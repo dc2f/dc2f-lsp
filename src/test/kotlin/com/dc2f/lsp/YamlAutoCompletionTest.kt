@@ -1,6 +1,9 @@
 package com.dc2f.lsp
 
+import assertk.assertThat
+import assertk.assertions.isNotNull
 import com.dc2f.ContentDef
+import com.dc2f.lsp.test.*
 import mu.KotlinLogging
 import org.eclipse.lsp4j.CompletionItem
 import org.junit.jupiter.api.Test
@@ -46,15 +49,30 @@ internal class YamlAutoCompletionTest {
     @Test
     fun findCompletion() {
         val completions = testCompletion(1, 1)
-        logger.debug { "completions: ${completions?.shortToString()}" }
+        logger.debug { "completions: ${completions?.toStringShort()}" }
+        assertThat(completions)
+            .isNotNull()
+            .containsLabelsOnly("headline", "author", "category", "seo")
     }
 
     @Test
     fun nestedCompletion() {
         val completions = testCompletion(3, 5)
-        logger.debug { "completions: ${completions?.shortToString()}" }
+        logger.debug { "completions: ${completions?.toStringShort()}" }
+        assertThat(completions)
+            .isNotNull()
+            .containsLabelsOnly("firstName", "lastName")
+    }
+
+    @Test
+    fun `early nested completion`() {
+        val completions = testCompletion(3, 1)
+        logger.debug { "completions: ${completions?.toStringShort()}" }
+        assertThat(completions)
+            .isNotNull()
+            .containsLabelsOnly("firstName", "lastName")
     }
 }
 
-fun List<CompletionItem>.shortToString() =
+fun List<CompletionItem>.toStringShort() =
     joinToString(",\n", "\n") { "${it.label}: ${it.detail}" }

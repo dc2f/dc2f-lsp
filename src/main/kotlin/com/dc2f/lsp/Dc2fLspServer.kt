@@ -5,7 +5,7 @@ package com.dc2f.lsp
 
 import org.eclipse.lsp4j.launch.LSPLauncher
 import java.io.*
-import java.net.InetSocketAddress
+import java.net.*
 import java.nio.channels.*
 import kotlin.concurrent.thread
 
@@ -36,15 +36,23 @@ fun main(args: Array<String>) {
 //        return
 //    }
 
-    val serverSocket = ServerSocketChannel.open()
-    val inetSocketAddress = InetSocketAddress("localhost", 5007)
-    serverSocket.bind(inetSocketAddress)
+    val serverSocket = ServerSocket(5007)
     while (true) {
-        logger.info("Listening on $inetSocketAddress ...")
-        val socketChannel = serverSocket.accept()
+        logger.info("Listening on ${serverSocket.inetAddress} ...")
+        val socket = serverSocket.accept()
         logger.debug { "Connected." }
-        val input = Channels.newInputStream(socketChannel)
-        val out = Channels.newOutputStream(socketChannel)
-        startServer(input, out)
+        startServer(socket.getInputStream(), socket.getOutputStream())
     }
+
+//    val serverSocket = ServerSocketChannel.open()
+//    val inetSocketAddress = InetSocketAddress("localhost", 5007)
+//    serverSocket.bind(inetSocketAddress)
+//    while (true) {
+//        logger.info("Listening on $inetSocketAddress ...")
+//        val socketChannel = serverSocket.accept()
+//        logger.debug { "Connected." }
+//        val input = Channels.newInputStream(socketChannel)
+//        val out = Channels.newOutputStream(socketChannel)
+//        startServer(input, out)
+//    }
 }

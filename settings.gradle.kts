@@ -10,3 +10,4 @@
 rootProject.name = "dc2f-lsp"
 
 includeBuild("../dc2f.kt")
+includeBuild("../finalyzer-dc2f-site")

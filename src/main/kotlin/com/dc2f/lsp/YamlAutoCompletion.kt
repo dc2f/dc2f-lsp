@@ -6,7 +6,7 @@ import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.dataformat.yaml.*
 import mu.KotlinLogging
 import org.eclipse.lsp4j.CompletionItem
-import kotlin.reflect.KClass
+import kotlin.reflect.*
 import kotlin.reflect.full.memberProperties
 
 /// 1 based (!!!!) position in the yaml content.
@@ -31,7 +31,9 @@ class YamlAutoCompletion<T : ContentDef>(content: String, val pos: FilePosition,
     }
 
     private fun checkPosition(token: JsonToken, klass: KClass<*>?) =
-        if (parser.currentLocation.lineNr >= pos.line && parser.currentLocation.columnNr >= pos.character) {
+        if ((parser.currentLocation.lineNr == pos.line && parser.currentLocation.columnNr >= pos.character)
+            || parser.currentLocation.lineNr > pos.line){
+
             logger.info { "Found requested position. ${parser.currentLocation} vs $pos" }
             klass?.let(::findAvailableAttributes) ?: emptyList()
         } else { null }
@@ -53,11 +55,16 @@ class YamlAutoCompletion<T : ContentDef>(content: String, val pos: FilePosition,
                 JsonToken.START_OBJECT -> {
                     logger.debug { "Found new nested object." }
                     handleObject(token, klass?.let { klass ->
-                        klass.kotlinMemberProperties.first { it.name == lastFieldName }.returnType.classifier as? KClass<*>
+                        klass.kotlinMemberProperties.findByName(lastFieldName)?.let { prop ->
+                            prop.returnType.classifier as? KClass<*>
+                        }.ifNull {
+                            logger.warn { "Unable to find property $lastFieldName for class $klass" }
+                        }
                     })?.let {
                         return it
                     }
                 }
+                JsonToken.END_OBJECT -> return null
                 else -> {}
             }
 
@@ -78,6 +85,14 @@ class YamlAutoCompletion<T : ContentDef>(content: String, val pos: FilePosition,
     }
 }
 
+private fun <E: KProperty1<*, *>> List<E>.findByName(lastFieldName: String?) =
+    firstOrNull { it.name == lastFieldName }
+
+inline fun <T> T?.ifNull(block: () -> Unit) = if (this != null) { this } else {
+    block()
+    null
+}
+
 val KClass<*>.kotlinMemberProperties get() =
     memberProperties.filter { member -> !member.returnType.isJavaType }
 
@@ -85,3 +100,4 @@ private inline fun YAMLParser.forEach(iterator: (token: JsonToken) -> Unit) =
     asSequence().forEach(iterator)
 
 private fun YAMLParser.asSequence() = generateSequence { nextToken() }
+

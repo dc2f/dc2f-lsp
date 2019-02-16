@@ -1,17 +1,20 @@
 package com.dc2f.lsp
 
-import com.dc2f.util.toStringReflective
 import mu.KotlinLogging
 import org.eclipse.lsp4j.*
+import org.eclipse.lsp4j.jsonrpc.CompletableFutures
 import org.eclipse.lsp4j.jsonrpc.messages.Either
-import org.eclipse.lsp4j.jsonrpc.services.ServiceEndpoints
 import org.eclipse.lsp4j.services.*
+import java.net.URI
+import java.nio.file.*
 import java.util.concurrent.CompletableFuture
 
 private val logger = KotlinLogging.logger {}
 
-class Dc2fLanguageServer : LanguageServer, LanguageClientAware {
+class Dc2fLanguageServer : LanguageServer, LanguageClientAware, WorkspaceService {
     private lateinit var client: LanguageClient
+    private lateinit var initParams: InitializeParams
+    internal lateinit var workspace: CompletableFuture<Dc2fWorkspace>
 
     override fun connect(client: LanguageClient) {
         this.client = client
@@ -24,29 +27,66 @@ class Dc2fLanguageServer : LanguageServer, LanguageClientAware {
 
     override fun getTextDocumentService(): TextDocumentService {
         logger.info { "getTextDocumentService()" }
-        return Dc2fTextDocumentService()
+        return Dc2fTextDocumentService(this)
     }
 
     override fun exit() {
         logger.info { "exit" }
     }
 
-    override fun initialize(params: InitializeParams?): CompletableFuture<InitializeResult> {
-        logger.info { "Initializing with params ${params?.toString()}" }
-        val capabilities = ServerCapabilities()
-        capabilities.textDocumentSync = Either.forLeft(TextDocumentSyncKind.Full)
-        capabilities.completionProvider = CompletionOptions(true, listOf(".", "="))
-        return CompletableFuture.completedFuture(InitializeResult(capabilities))
+    private lateinit var workspaceLoadingThread: Thread
+
+    override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> {
+        logger.info { "Initializing with params ${params}" }
+        return CompletableFutures.computeAsync { cancel ->
+//        return CompletableFuture.completedFuture({
+            this.initParams = params
+            val rootPath = uriToPath(params.rootUri)
+            if (!Files.exists(rootPath)) {
+                logger.error { "Unable to find root path $rootPath" }
+            }
+//            this.workspace = CompletableFuture.completedFuture(Dc2fWorkspace(rootPath, javaClass.classLoader))
+            this.workspace = CompletableFuture.supplyAsync {
+                val workspace = Dc2fWorkspace(rootPath, javaClass.classLoader)
+                workspace.load()
+                workspace
+            }
+            val capabilities = ServerCapabilities()
+            capabilities.textDocumentSync = Either.forLeft(TextDocumentSyncKind.Full)
+            capabilities.completionProvider = CompletionOptions(true, listOf(".", "="))
+            logger.debug { "ok, replying $capabilities" }
+            InitializeResult(capabilities)
+        }
     }
 
     override fun getWorkspaceService(): WorkspaceService {
         logger.info("getWorkspaceService()")
-        return Dc2fWorkspaceService()
+        return object : WorkspaceService {
+            override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
+
+            }
+
+            override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
+
+            }
+
+        }
+    }
+
+    override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
+        logger.info { "didChangeWatchedFiles $params" }
+    }
+
+    override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
+        logger.info { "didChangeConfiguration $params" }
+
     }
 
 }
 
-class Dc2fTextDocumentService : TextDocumentService {
+class Dc2fTextDocumentService(
+    val languageServer: Dc2fLanguageServer
+) : TextDocumentService {
     override fun didOpen(params: DidOpenTextDocumentParams?) {
         logger.info { "didOpen $params" }
     }
@@ -63,21 +103,35 @@ class Dc2fTextDocumentService : TextDocumentService {
         logger.info { "didChange $params" }
     }
 
-    override fun completion(position: CompletionParams?): CompletableFuture<Either<MutableList<CompletionItem>, CompletionList>> {
+    override fun completion(position: CompletionParams): CompletableFuture<Either<MutableList<CompletionItem>, CompletionList>> {
         logger.info("completion for $position")
-        return CompletableFuture.completedFuture((Either.forRight(CompletionList(true, listOf(CompletionItem("Lorem Ipsum"))))))
+        return languageServer.workspace.thenApplyAsync { workspace ->
+            val path = uriToPath(position.textDocument.uri)
+
+            Either.forRight<MutableList<CompletionItem>, CompletionList>(
+                CompletionList(
+                    workspace.autocompletion(
+                        path,
+                        FilePosition(position.position.line + 1, position.position.character + 1)
+                    )
+                )
+            )
+        }
     }
+//        CompletableFuture.supplyAsync {
+//            logger.info("completion for $position")
+//            val path = uriToPath(position.textDocument.uri)
+//
+//            Either.forRight<MutableList<CompletionItem>, CompletionList>(
+//                CompletionList(
+//                        .autocompletion(
+//                        path, FilePosition(position.position.line+1, position.position.character+1))
+//                )
+//            )
+////            return (Either.forRight(CompletionList(true, listOf(CompletionItem("Lorem Ipsum")))))
+//        }
 
 }
 
-class Dc2fWorkspaceService : WorkspaceService {
-    override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams?) {
-        logger.info { "didChangeWatchedFiles $params" }
-    }
-
-    override fun didChangeConfiguration(params: DidChangeConfigurationParams?) {
-        logger.info { "didChangeConfiguration $params" }
-
-    }
-
-}
+private fun uriToPath(uri: String) : Path =
+    FileSystems.getDefault().getPath(URI(uri).toURL().file)

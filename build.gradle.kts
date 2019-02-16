@@ -24,6 +24,7 @@ dependencies {
     // Use the Kotlin JDK 8 standard library.
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("com.dc2f:dc2f:0.0.1-SNAPSHOT")
+    runtime("app.anlage.site:finalyzer-dc2f-site")
 
     implementation("io.github.microutils:kotlin-logging:1.4.9")
 
@@ -48,6 +49,7 @@ dependencies {
     // Use the Kotlin JUnit integration.
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.4.0")
+    testImplementation("com.willowtreeapps.assertk:assertk-jvm:0.13")
 }
 
 application {
